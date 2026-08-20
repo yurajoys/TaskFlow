@@ -1,12 +1,20 @@
 const express = require("express");
+const bcrypt = require("bcrypt");
 const jwt = require("jsonwebtoken");
-
+const mongoose = require("mongoose");
+const User = require("./modals/User");
 const app = express();
 
 app.use(express.json());
 
 
-
+mongoose.connect("mongodb://127.0.0.1:27017/TaskFlow")
+   .then(() => {
+    console.log("MongoDB connected");
+   })
+   .catch((err) => {
+    console.log("MongoDB connection error:", err);
+   });
 
 app.use((req, res, next) => {
     console.log("middleware running");
@@ -38,20 +46,44 @@ app.post("/test", (req, res) => {
     res.send("Data received");
 });
 
-app.use("/profile", (req, res, next) => {
-    if(req.headers.authorization === "my-secret-token"){
-        next();
 
-    } else{
-        res.status(401).send("Unauthorized");
+
+app.use("/profile", (req, res, next) => {
+
+    if (!req.headers.authorization) {
+        return res.status(401).send("Token required");
     }
+
+    const token = req.headers.authorization.split(" ")[1];
+
+    jwt.verify(token, "mysecretkey", (err, decoded) => {
+
+        if (err) {
+            return res.status(401).send("Invalid token");
+        }
+        
+        req.user = decoded;
+        next();
+        
+    });
 });
 app.get("/profile", (req, res) => {
+    console.log(req.user);
 
-
-    res.send("Welcome to Profile");
+    res.send(`Welcome User ${req.user.userId}`);
 });
 
+app.post("/register", async (req, res) => {
+    const { Username, email, password, role } = req.body;
+    const hashedPassword = await bcrypt.hash(password, 10);
+    const user = await User.create({
+        Username: Username,
+        email: email,
+        password: hashedPassword,
+        role: role
+
+    });
+});
 app.listen(3009, () => {
-    console.log("TaskFlow server is running on port 3008");
+    console.log("TaskFlow server is running on port 3009");
 });
